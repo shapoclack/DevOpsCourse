@@ -160,3 +160,59 @@ sudo ufw enable
    sudo ufw --force enable
    ```
 8. Запустить `scripts/audit.sh` и убедиться в получении `0 FAIL`.
+
+
+---
+
+## 8. Веб-сервер Nginx
+
+| Параметр | Значение / Путь | Примечание |
+| :--- | :--- | :--- |
+| **Устанавливаемый пакет** | `nginx` (`nginx-common`) | Установка через `apt install -y nginx` |
+| **Путь к конфигурации ресурса** | `/etc/nginx/sites-available/devops-site` | Символическая ссылка в `/etc/nginx/sites-enabled/` |
+| **Стандартный ресурс** | `/etc/nginx/sites-enabled/default` | Отключён (символическая ссылка удалена) |
+| **Каталог веб-ресурса** | `/var/www/devops-site` | Владелец `devops:devops`, права `755` на каталоги, `644` на файлы |
+| **Путь к сертификату TLS** | `/etc/ssl/certs/devops.crt` | Права `644`, владелец `root:root` |
+| **Путь к закрытому ключу TLS** | `/etc/ssl/private/devops.key` | Права `600`, владелец `root:root` |
+| **Срок действия сертификата** | 365 дней (1 год) | Самоподписанный с расширением SAN `DNS:devops.local` |
+
+### Команда выпуска сертификата:
+```bash
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/devops.key \
+  -out /etc/ssl/certs/devops.crt \
+  -subj "/CN=devops.local" \
+  -addext "subjectAltName=DNS:devops.local"
+```
+
+### Конфигурация виртуального хоста `/etc/nginx/sites-available/devops-site`:
+```nginx
+# Блок 1: перенаправление HTTP -> HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name devops.local;
+    return 301 https://$host$request_uri;
+}
+
+# Блок 2: основной виртуальный хост HTTPS
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name devops.local;
+    root /var/www/devops-site;
+    index index.html;
+
+    ssl_certificate /etc/ssl/certs/devops.crt;
+    ssl_certificate_key /etc/ssl/private/devops.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    error_page 404 /404.html;
+    access_log /var/log/nginx/devops-site.access.log;
+    error_log /var/log/nginx/devops-site.error.log;
+}
+```

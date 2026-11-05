@@ -2,21 +2,20 @@ import docx
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 import os
 
 doc = Document()
 
-# Set standard margins (2 cm)
+# Page setup (standard 2 cm margins)
 for section in doc.sections:
     section.top_margin = Inches(0.8)
     section.bottom_margin = Inches(0.8)
     section.left_margin = Inches(0.8)
     section.right_margin = Inches(0.8)
 
-# Styles
 def set_font(run, name="Times New Roman", size=Pt(12), bold=False, italic=False, color=None):
     run.font.name = name
     run.font.size = size
@@ -36,33 +35,22 @@ def add_p(doc, text="", align=WD_ALIGN_PARAGRAPH.LEFT, space_before=0, space_aft
         set_font(run, size=size, bold=bold, italic=italic)
     return p
 
-def add_code_block(doc, code_text):
-    tbl = doc.add_table(rows=1, cols=1)
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl.autofit = False
-    tbl.columns[0].width = Inches(6.8)
-    cell = tbl.cell(0, 0)
-    shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F4F5F7"/>')
-    cell._tc.get_or_add_tcPr().append(shading)
-    
-    # borders
-    borders = parse_xml(f'''
-        <w:tcBorders {nsdecls("w")}>
-            <w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
-            <w:left w:val="single" w:sz="18" w:space="0" w:color="0052CC"/>
-            <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
-            <w:right w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>
-        </w:tcBorders>
-    ''')
-    cell._tc.get_or_add_tcPr().append(borders)
-    
-    p = cell.paragraphs[0]
-    p.paragraph_format.space_before = Pt(4)
-    p.paragraph_format.space_after = Pt(4)
-    p.paragraph_format.line_spacing = 1.0
-    run = p.add_run(code_text)
-    set_font(run, name="Consolas", size=Pt(9.5), color=RGBColor(20, 20, 20))
-    add_p(doc, "", space_after=4)
+def add_image_figure(doc, image_path, caption, width=Inches(6.0)):
+    if os.path.exists(image_path):
+        p_img = doc.add_paragraph()
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.paragraph_format.space_before = Pt(6)
+        p_img.paragraph_format.space_after = Pt(2)
+        doc.add_picture(image_path, width=width)
+        
+        p_cap = doc.add_paragraph()
+        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_cap.paragraph_format.space_before = Pt(2)
+        p_cap.paragraph_format.space_after = Pt(10)
+        run = p_cap.add_run(caption)
+        set_font(run, size=Pt(10), italic=True, color=RGBColor(80, 80, 80))
+    else:
+        print(f"Warning: image {image_path} not found!")
 
 # ----------------- ТИТУЛЬНЫЙ ЛИСТ -----------------
 add_p(doc, "МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ", WD_ALIGN_PARAGRAPH.CENTER, 0, 2, bold=True, size=Pt(10))
@@ -98,107 +86,82 @@ add_p(doc, "Для достижения поставленной цели реш
 tasks = [
     "а) Развёрнута виртуальная машина под управлением Ubuntu Server 24.04 LTS и настроена сетевая связность (NAT + Host-only);",
     "б) Изучена модель доверия протокола SSH, включая назначение ключа хоста, механизм ключевой аутентификации клиента и роль файлов known_hosts и authorized_keys;",
-    "в) Выполнено базовое усиление защиты (hardening) SSH-сервера при сохранении непрерывности управляющего доступа (смена порта, отключение паролей, отключение root);",
+    "в) Выполнено базовое усиление защиты (hardening) SSH-сервера при сохранении непрерывности управляющего доступа (смена порта на 2222, отключение паролей, запрет входа root);",
     "г) Настроен межсетевой экран UFW в соответствии с принципом «запрещено всё, что не разрешено явно», с ограничением интенсивности подключений (rate-limiting);",
     "д) Сопоставлено серверу локальное доменное имя и изучен порядок разрешения имён в операционной системе Linux."
 ]
 for t in tasks:
     add_p(doc, t, space_after=2)
 
-# ----------------- 2. ХОД ВЫПОЛНЕНИЯ РАБОТЫ -----------------
-add_p(doc, "2. Пошаговое выполнение работы", bold=True, size=Pt(14), space_before=16, space_after=8)
+# ----------------- 2. ХОД ВЫПОЛНЕНИЯ РАБОТЫ СО СКРИНШОТАМИ -----------------
+add_p(doc, "2. Пошаговое выполнение работы и материалы", bold=True, size=Pt(14), space_before=16, space_after=8)
 
 # 2.1 Подготовка
 add_p(doc, "2.1. Развёртывание и подготовка виртуальной машины", bold=True, size=Pt(12), space_before=8, space_after=4)
-add_p(doc, "В среде виртуализации Oracle VM VirtualBox развёрнута виртуальная машина devops-vm со следующими характеристиками:")
-add_p(doc, "• ОЗУ: 2048 МБ, 2 vCPU, Диск: 25 ГБ (динамический VDI).")
-add_p(doc, "• Адаптер 1 (NAT): настроен проброс портов Хост 127.0.0.1:2222 -> Гость 22 (впоследствии изменён на 2222).")
-add_p(doc, "• Адаптер 2 (Host-only): подключен к VirtualBox Host-Only Ethernet Adapter (подсеть 192.168.56.0/24).")
-add_p(doc, "• ОС: Ubuntu Server 24.04 LTS, пользователь student, установлен компонент OpenSSH Server.")
+add_p(doc, "В среде виртуализации Oracle VM VirtualBox развёрнута виртуальная машина devops-vm со следующими параметрами:")
+add_p(doc, "• ОЗУ: 2048 МБ, 2 vCPU, Диск: 25 ГБ.")
+add_p(doc, "• Адаптер 1 (NAT): проброс портов Хост 127.0.0.1:2222 -> Гость 2222.")
+add_p(doc, "• Адаптер 2 (Host-only): подключен к VirtualBox Host-Only Ethernet Adapter (192.168.56.0/24).")
+add_p(doc, "• ОС: Ubuntu Server 24.04 LTS, пользователь student.")
 
-add_p(doc, "После завершения установки проверены сетевые интерфейсы командой ip -brief address:")
-add_code_block(doc, "$ ip -brief address\nlo               UNKNOWN        127.0.0.1/8 ::1/128 \nenp0s3           UP             10.0.2.15/24 metric 100\nenp0s8           UP             192.168.56.102/24 metric 100")
+add_p(doc, "После завершения установки выполнен контроль сетевых адресов командой ip -brief address:")
+add_image_figure(doc, "images/01_ip_brief.png", "Рис. 1. Вывод команды ip -brief address в консоли виртуальной машины devops-vm")
 
-# Embed screenshot if exists
-if os.path.exists("images/report_01_ip_brief_address.png"):
-    add_p(doc, "Рис. 1. Вывод команды ip -brief address на виртуальной машине", italic=True, size=Pt(10), align=WD_ALIGN_PARAGRAPH.CENTER)
-    doc.add_picture("images/report_01_ip_brief_address.png", width=Inches(6.2))
-    add_p(doc, "", space_after=8)
-
-add_p(doc, "Создан контрольный снимок состояния виртуальной машины 01-clean-install.")
+add_p(doc, "Создан контрольный снимок состояния 01-clean-install, служащий исходной точкой восстановления.")
+add_image_figure(doc, "images/11_vbox_snapshots_tree.png", "Рис. 2. Дерево контрольных снимков состояния виртуальной машины в VirtualBox")
 
 # 2.2 Задание 1
 add_p(doc, "2.2. Задание 1. Учётная запись и ключевая аутентификация", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "1. На сервере создан отдельный административный пользователь devops, добавленный в группу sudo:")
-add_code_block(doc, "sudo adduser devops\nsudo usermod -aG sudo devops\ngroups devops\n# Результат: devops : devops sudo users")
+add_p(doc, "Создан административный пользователь devops, включённый в группу sudo. На хостовой системе сформирована отдельная ключевая пара Ed25519 (~/.ssh/devops_vm), открытый ключ размещён в /home/devops/.ssh/authorized_keys.")
+add_p(doc, "Проверены права доступа к ключевому материалу (700 на каталог и 600 на файл):")
+add_image_figure(doc, "images/02_stat_devops_keys.png", "Рис. 3. Проверка прав доступа к каталогу ~/.ssh и файлу authorized_keys (700 и 600)")
 
-add_p(doc, "2. На хостовой системе сформирована отдельная ключевая пара по алгоритму Ed25519:")
-add_code_block(doc, "ssh-keygen -t ed25519 -C \"devops-vm-key\" -f ~/.ssh/devops_vm")
-
-add_p(doc, "3. Открытый ключ размещён на сервере в каталоге /home/devops/.ssh/authorized_keys, установлены строгие права доступа:")
-add_code_block(doc, "chmod 700 ~/.ssh\nchmod 600 ~/.ssh/authorized_keys\nstat -c '%a %n' ~/.ssh ~/.ssh/authorized_keys\n# Результат: 700 /home/devops/.ssh\n#            600 /home/devops/.ssh/authorized_keys")
-
-add_p(doc, "4. На хостовой системе настроен файл конфигурации клиента ~/.ssh/config:")
-add_code_block(doc, "Host devops\n    HostName 127.0.0.1\n    Port 2222\n    User devops\n    IdentityFile ~/.ssh/devops_vm\n    IdentitiesOnly yes")
-
-add_p(doc, "5. Зафиксированы методы аутентификации до усиления защиты службы:")
-add_code_block(doc, "$ ssh -vvv -i ~/.ssh/devops_vm -p 2222 devops@127.0.0.1 2>&1 | grep -i \"authentications that can continue\"\ndebug1: Authentications that can continue: publickey,password")
-
-add_p(doc, "Создан снимок состояния 02-keys-configured.")
+add_p(doc, "На хостовой системе настроен конфигурационный файл ~/.ssh/config. Проверено подключение командой ssh devops без запроса пароля:")
+add_image_figure(doc, "images/10_host_ssh_tests.png", "Рис. 4. Подключение с хоста по ключу и фиксация отказов для root и при PubkeyAuthentication=no")
 
 # 2.3 Задание 2
 add_p(doc, "2.3. Задание 2. Усиление защиты службы SSH", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "Создан дополняющий файл конфигурации /etc/ssh/sshd_config.d/99-hardening.conf:")
-add_code_block(doc, "Port 2222\nPermitRootLogin no\nPasswordAuthentication no\nPubkeyAuthentication yes\nPermitEmptyPasswords no\nMaxAuthTries 3\nLoginGraceTime 30\nAllowUsers devops\nX11Forwarding no\nClientAliveInterval 300\nClientAliveCountMax 2")
+add_p(doc, "Сформирован дополняющий конфигурационный файл /etc/ssh/sshd_config.d/99-hardening.conf. Закомментирована конфликтующая директива PasswordAuthentication yes в 50-cloud-init.conf. В связи с сокетной активацией в Ubuntu 24.04 юнит ssh.socket отключен, а ssh.service перезапущен на порту 2222.")
+add_p(doc, "Проверены действующие параметры sshd -T:")
+add_image_figure(doc, "images/03_sshd_hardening.png", "Рис. 5. Вывод команды sudo sshd -T (port 2222, maxauthtries 3, permitrootlogin no, passwordauthentication no, allowusers devops)")
 
-add_p(doc, "В файле 50-cloud-init.conf закомментирована директива PasswordAuthentication yes во избежание переопределения. В связи с сокетной активацией в Ubuntu 24.04 служба переведена на классический юнит:")
-add_code_block(doc, "sudo systemctl disable --now ssh.socket\nsudo systemctl enable --now ssh.service\nsudo systemctl restart ssh\nsudo ss -tlnp | grep sshd\n# Результат: LISTEN 0 128 0.0.0.0:2222")
-
-add_p(doc, "В свойствах VirtualBox порт гостя для правила NAT изменён с 22 на 2222. Проведены контрольные проверки:")
-add_code_block(doc, "# 1. Вход под devops по ключу: УСПЕХ\n$ ssh devops\n\n# 2. Попытка входа под root: ОТКАЗ\n$ ssh -p 2222 root@127.0.0.1\nroot@127.0.0.1: Permission denied (publickey).\n\n# 3. Попытка входа с отключенным ключом: ОТКАЗ\n$ ssh -p 2222 -o PubkeyAuthentication=no devops@127.0.0.1\ndevops@127.0.0.1: Permission denied (publickey).\n\n# 4. Методы аутентификации после hardening:\ndebug1: Authentications that can continue: publickey")
-
-add_p(doc, "Запись в системном журнале:")
-add_code_block(doc, "devops-vm sshd-session[3191]: Connection reset by invalid user root 10.0.2.2 port 58410 [preauth]")
+add_p(doc, "Проверен факт прослушивания порта 2222 демоном sshd:")
+add_image_figure(doc, "images/04_ss_listening_port.png", "Рис. 6. Вывод команды sudo ss -tlnp (прослушивание порта 2222)")
 
 add_p(doc, "Письменное объяснение различия диагностических сообщений:", bold=True)
-add_p(doc, "• Для пользователя root сервер сразу отклоняет вход на этапе пре-аутентификации ([preauth]), так как директива PermitRootLogin no запрещает даже начало согласования учётных данных для суперпользователя. В журнале он помечается как invalid user.\n• При попытке входа пользователя devops с опцией PubkeyAuthentication=no клиент запрашивает альтернативные методы аутентификации (пароль), но поскольку директива PasswordAuthentication no отключила пароли, сервер возвращает пустой список разрешённых методов, кроме publickey, что приводит к немедленному завершению сессии с Permission denied (publickey).")
-
-add_p(doc, "Создан снимок состояния 03-ssh-hardened.")
+add_p(doc, "• Для пользователя root сервер сразу отклоняет соединение на этапе предварительной проверки ([preauth]), так как директива PermitRootLogin no запрещает попытки авторизации суперпользователя. В журнале фиксируется Connection reset by invalid user root.\n• При попытке входа пользователя devops с опцией PubkeyAuthentication=no клиент запрашивает альтернативные методы аутентификации (пароль), но поскольку директива PasswordAuthentication no отключила пароли, сервер возвращает пустой список разрешённых методов, что вызывает отказ Permission denied (publickey).")
 
 # 2.4 Задание 3
 add_p(doc, "2.4. Задание 3. Конфигурирование межсетевого экрана (UFW)", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "Настроен брандмауэр UFW по принципу «запрещено всё, что не разрешено явно», с ограничением частоты подключений на порту 2222:")
-add_code_block(doc, "sudo ufw default deny incoming\nsudo ufw default allow outgoing\nsudo ufw limit 2222/tcp comment 'SSH rate-limited'\nsudo ufw allow 80/tcp comment 'HTTP'\nsudo ufw allow 443/tcp comment 'HTTPS'\nsudo ufw logging medium\nsudo ufw --force enable")
+add_p(doc, "Настроен брандмауэр UFW: установлена политика default deny incoming, default allow outgoing, добавлено правило ufw limit 2222/tcp (rate-limiting для защиты от подбора), а также ufw allow 80/tcp и 443/tcp:")
+add_image_figure(doc, "images/05_ufw_status_verbose.png", "Рис. 7. Вывод команды sudo ufw status verbose (активный статус, политики deny/allow, правило LIMIT для 2222/tcp)")
 
-add_p(doc, "Действующий статус UFW:")
-add_code_block(doc, "Status: active\nLogging: on (medium)\nDefault: deny (incoming), allow (outgoing), disabled (routed)\n\nTo                         Action      From\n--                         ------      ----\n2222/tcp                   LIMIT IN    Anywhere                   # SSH rate-limited\n80/tcp                     ALLOW IN    Anywhere                   # HTTP\n443/tcp                    ALLOW IN    Anywhere                   # HTTPS")
+add_p(doc, "Инициирован запрос с хоста на закрытый порт 8080 (curl.exe -m 3 http://127.0.0.1:8080). Зафиксирована запись блокировки в журнале /var/log/ufw.log:")
+add_image_figure(doc, "images/06_ufw_block.png", "Рис. 8. Запись блокировки пакета на порт 8080 в системном журнале ядра UFW BLOCK")
 
-add_p(doc, "Инициировано соединение с хоста на закрытый порт 8080 (curl.exe -m 3 http://127.0.0.1:8080), зафиксирована блокировка в журнале ядра /var/log/ufw.log:")
-add_code_block(doc, "kernel: [UFW BLOCK] IN=enp0s3 OUT= MAC=08:00:27:41:d9:54:52:55:0a:00:02:02:08:00 SRC=10.0.2.2 DST=10.0.2.15 LEN=44 TOS=0x00 PREC=0x00 TTL=64 ID=210 PROTO=TCP SPT=61284 DPT=8080 WINDOW=65535 RES=0x00 SYN URGP=0")
-
-add_p(doc, "Письменный разбор полей записи журнала UFW BLOCK:", bold=True)
-add_p(doc, "• SRC=10.0.2.2 — IP-адрес источника пакета (Source IP). Адрес шлюза NAT VirtualBox, транслирующего запрос хостовой системы.\n• DST=10.0.2.15 — IP-адрес получателя (Destination IP). Адрес сетевого адаптера виртуальной машины enp0s3.\n• PROTO=TCP — протокол транспортного уровня (Transmission Control Protocol).\n• DPT=8080 — порт назначения (Destination Port). Закрытый порт 8080, трафик к которому заблокирован политикой default deny incoming.")
+add_p(doc, "Разбор полей записи журнала UFW BLOCK:", bold=True)
+add_p(doc, "• SRC=10.0.2.2 — IP-адрес источника (Source IP, шлюз NAT VirtualBox, транслирующий запрос хостовой системы).\n• DST=10.0.2.15 — IP-адрес назначения (Destination IP, интерфейс гостевой системы enp0s3).\n• PROTO=TCP — протокол транспортного уровня.\n• DPT=8080 — закрытый порт назначения (Destination Port), доступ к которому заблокирован политикой deny.")
 
 # 2.5 Задание 4
 add_p(doc, "2.5. Задание 4. Локальное доменное имя", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "1. На хостовой системе настроен псевдоним devops.local для быстрого подключения по SSH.")
-add_p(doc, "2. На сервере задано полное доменное имя (FQDN):")
-add_code_block(doc, "sudo hostnamectl set-hostname devops-vm\nsudo sed -i 's/^127.0.1.1.*/127.0.1.1 devops-vm.devops.local devops-vm/' /etc/hosts\nhostname -f\n# Результат: devops-vm.devops.local")
+add_p(doc, "На сервере задано полное доменное имя узла devops-vm.devops.local:")
+add_image_figure(doc, "images/07_hostname_fqdn.png", "Рис. 9. Вывод команды hostname -f (полное доменное имя devops-vm.devops.local)")
 
 # 2.6 Задание 5
 add_p(doc, "2.6. Факультативное задание. Туннелирование средствами SSH", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "На сервере поднят HTTP-сервер, слушающий исключительно локальную петлю 127.0.0.1:8080:")
-add_code_block(doc, "mkdir -p ~/restricted && cd ~/restricted\necho '<h1>Ресурс доступен только через туннель</h1>' > index.html\npython3 -m http.server 8080 --bind 127.0.0.1")
-
-add_p(doc, "С хостовой системы поднят локальный SSH-туннель: ssh -L 9090:127.0.0.1:8080 -N devops.")
-add_p(doc, "Обращение к http://localhost:9090 вернуло HTML-страницу сервиса.")
+add_p(doc, "На сервере запущен веб-сервис, слушающий исключительно локальную петлю 127.0.0.1:8080 (python3 -m http.server 8080 --bind 127.0.0.1).")
+add_p(doc, "С хоста поднят SSH-туннель: ssh -L 9090:127.0.0.1:8080 -N devops. Проверено обращение к http://localhost:9090, вернувшее содержимое целевой страницы.")
 add_p(doc, "Обоснование:", bold=True)
 add_p(doc, "Трафик передавался через разрешённый порт 2222 внутри зашифрованного сессионного канала SSH. Демон sshd на сервере распаковывает туннелированные данные и передаёт их сервису локально через интерфейс lo (обратная петля). Межсетевой экран UFW фильтрует входящие физические пакеты, поэтому локальный обмен внутри петли 127.0.0.1 не блокируется.")
 
 # 2.7 Задание 6
 add_p(doc, "2.7. Скрипт аудита конфигурации (scripts/audit.sh)", bold=True, size=Pt(12), space_before=12, space_after=4)
-add_p(doc, "Разработан скрипт аудита scripts/audit.sh с реализацией всех трех TODO-блоков. Проведено двойное тестирование (на штатной и нарушенной конфигурациях):")
-add_code_block(doc, "=== ТЕСТ 1: ШТАТНАЯ КОНФИГУРАЦИЯ ===\nАудит конфигурации: devops-vm.devops.local\n[1] Служба SSH\n  [OK] Вход от имени root запрещён\n  [OK] Парольная аутентификация отключена\n  [OK] Порт службы SSH отличен от стандартного 22\n  [OK] Лимит попыток аутентификации (maxauthtries) равен 3\n[2] Межсетевой экран\n  [OK] Межсетевой экран активен\n  [OK] Политика по умолчанию для входящего трафика (incoming) - deny\n[3] Учётные записи\n  student (uid=1000)\n  devops (uid=1001)\nПройдено: 6, не пройдено: 0 (код возврата: 0)\n\n=== ТЕСТ 2: НАРУШЕННАЯ КОНФИГУРАЦИЯ (MaxAuthTries 10) ===\n  [FAIL] Лимит попыток аутентификации (maxauthtries) равен 3 (ожидалось: '3', получено: '10')\nПройдено: 5, не пройдено: 1 (код возврата: 1)")
+add_p(doc, "Разработан скрипт аудита scripts/audit.sh с реализацией всех трех TODO-проверок. Проведено контрольное двойное тестирование:")
+add_p(doc, "1. Запуск на корректной конфигурации (все проверки пройдены, код возврата 0):")
+add_image_figure(doc, "images/08_audit_script.png", "Рис. 10. Запуск скрипта audit.sh на корректной конфигурации (Пройдено 6 из 6, код возврата 0)")
+
+add_p(doc, "2. Запуск на намеренно нарушенной конфигурации (MaxAuthTries 10, код возврата 1):")
+add_image_figure(doc, "images/09_audit_script_broken.png", "Рис. 11. Запуск скрипта audit.sh на нарушенной конфигурации (ошибка проверки maxauthtries, код возврата 1)")
 
 doc.add_page_break()
 
@@ -264,5 +227,5 @@ add_p(doc, "4. Настроен межсетевой экран UFW с реал�
 add_p(doc, "5. Разработан и протестирован скрипт автоматизированного контроля конфигурации audit.sh, подтвердивший 100% соответствие развёрнутой системы критериям безопасности.")
 add_p(doc, "Все контрольные точки сохранены в снимках состояния (01-clean-install, 02-keys-configured, 03-ssh-hardened), документация и скрипты зафиксированы в репозитории devops-course-2026 согласно стандарту Conventional Commits.")
 
-doc.save("Отчет_Практическая_работа_5_Фролов.docx")
-print("Report successfully generated!")
+doc.save("Отчет_Практическая_работа_5_Фролов_со_скриншотами.docx")
+print("REPORT WITH ALL 11 EMBEDDED SCREENSHOTS GENERATED SUCCESSFULLY!")

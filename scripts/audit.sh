@@ -39,5 +39,24 @@ check "Политика по умолчанию для входящего тра
 echo "[3] Учётные записи"
 awk -F: '$3>=1000 && $3<65534 {printf "  %s (uid=%s)\n",$1,$3}' /etc/passwd
 
+echo "[4] Веб-сервер"
+check "Служба Nginx активна" "active" "$(systemctl is-active nginx 2>/dev/null || echo inactive)"
+
+nginx_syntax="ok"
+sudo nginx -t >/dev/null 2>&1 || nginx_syntax="error"
+check "Конфигурация Nginx синтаксически корректна" "ok" "$nginx_syntax"
+
+cert_valid="valid"
+openssl x509 -checkend 2592000 -noout -in /etc/ssl/certs/devops.crt >/dev/null 2>&1 || cert_valid="expired"
+check "Сертификат TLS действителен не менее 30 дней" "valid" "$cert_valid"
+
+web_perm="ok"
+writable_files="$(find /var/www/devops-site -perm -o+w 2>/dev/null)"
+key_mode="$(sudo stat -c '%a' /etc/ssl/private/devops.key 2>/dev/null || echo '')"
+if [[ -n "$writable_files" || "$key_mode" != "600" ]]; then
+    web_perm="insecure"
+fi
+check "Права веб-ресурса безопасны (нет o+w, ключ 600)" "ok" "$web_perm"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

@@ -1,2 +1,5 @@
 ~$*.docx
 *.log
+*.txt
+build_*.py
+generate_*.py
